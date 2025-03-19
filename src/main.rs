@@ -1,4 +1,5 @@
 mod balances;
+mod proof_of_existence;
 mod support;
 mod system;
 mod types {
@@ -11,12 +12,14 @@ mod types {
     pub type Extrinsic = support::Extrinsic<AccountId, crate::RuntimeCall>;
     pub type Header = support::Header<BlockNumber>;
     pub type Block = support::Block<Header, Extrinsic>;
+    pub type Content = &'static str;
 }
 
 use crate::support::Dispatch;
 
 pub enum RuntimeCall {
     Balances(balances::Call<Runtime>),
+    ProofOfExistence(proof_of_existence::Call<Runtime>),
 }
 
 impl system::Config for Runtime {
@@ -29,10 +32,15 @@ impl balances::Config for Runtime {
     type Balance = types::Balance;
 }
 
+impl proof_of_existence::Config for Runtime {
+    type Content = types::Content;
+}
+
 #[derive(Debug)]
 pub struct Runtime {
     system: system::Pallet<Runtime>,
     balances: balances::Pallet<Runtime>,
+    proof_of_existence: proof_of_existence::Pallet<Runtime>,
 }
 
 impl Runtime {
@@ -40,6 +48,7 @@ impl Runtime {
         Self {
             system: system::Pallet::new(),
             balances: balances::Pallet::new(),
+            proof_of_existence: proof_of_existence::Pallet::new(),
         }
     }
 
@@ -76,6 +85,9 @@ impl crate::support::Dispatch for Runtime {
         match runtime_call {
             RuntimeCall::Balances(call) => {
                 self.balances.dispatch(caller, call)?;
+            }
+            RuntimeCall::ProofOfExistence(call) => {
+                self.proof_of_existence.dispatch(caller, call)?;
             }
         }
 
@@ -117,16 +129,14 @@ fn main() {
         extrinsics: vec![
             support::Extrinsic {
                 caller: alice.clone(),
-                call: RuntimeCall::Balances(balances::Call::Transfer {
-                    to: bob.clone(),
-                    amount: 30,
+                call: RuntimeCall::ProofOfExistence(proof_of_existence::Call::CreateClaim {
+                    claim: "my_document",
                 }),
             },
             support::Extrinsic {
-                caller: alice.clone(),
-                call: RuntimeCall::Balances(balances::Call::Transfer {
-                    to: charlie.clone(),
-                    amount: 20,
+                caller: bob.clone(),
+                call: RuntimeCall::ProofOfExistence(proof_of_existence::Call::CreateClaim {
+                    claim: "Bob's document",
                 }),
             },
         ],
