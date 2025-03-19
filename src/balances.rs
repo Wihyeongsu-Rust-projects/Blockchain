@@ -10,6 +10,32 @@ pub struct Pallet<T: Config> {
     balances: BTreeMap<T::AccountId, T::Balance>,
 }
 
+#[macros::call]
+impl<T: Config> Pallet<T> {
+    pub fn transfer(
+        &mut self,
+        caller: T::AccountId,
+        to: T::AccountId,
+        amount: T::Balance,
+    ) -> Result<(), &'static str> {
+        let caller_balance = self.balance(&caller);
+        let to_balance = self.balance(&to);
+
+        let new_caller_balance = caller_balance
+            .checked_sub(&amount)
+            .ok_or("Insufficient balance")?;
+
+        let new_to_balance = to_balance
+            .checked_add(&amount)
+            .ok_or("Overflow when adding to balance")?;
+
+        self.set_balance(&caller, new_caller_balance);
+        self.set_balance(&to, new_to_balance);
+
+        Ok(())
+    }
+}
+
 impl<T: Config> Pallet<T> {
     pub fn new() -> Self {
         Self {
@@ -23,55 +49,6 @@ impl<T: Config> Pallet<T> {
 
     pub fn balance(&self, who: &T::AccountId) -> T::Balance {
         *self.balances.get(who).unwrap_or(&T::Balance::zero())
-    }
-
-    pub fn transfer(
-        &mut self,
-        caller: &T::AccountId,
-        to: &T::AccountId,
-        amount: T::Balance,
-    ) -> Result<(), &'static str> {
-        let caller_balance = self.balance(caller);
-        let to_balance = self.balance(to);
-
-        let new_caller_balance = caller_balance
-            .checked_sub(&amount)
-            .ok_or("Insufficient balance")?;
-
-        let new_to_balance = to_balance
-            .checked_add(&amount)
-            .ok_or("Overflow when adding to balance")?;
-
-        self.set_balance(caller, new_caller_balance);
-        self.set_balance(to, new_to_balance);
-
-        Ok(())
-    }
-}
-
-pub enum Call<T: Config> {
-    Transfer {
-        to: T::AccountId,
-        amount: T::Balance,
-    },
-}
-
-impl<T: Config> crate::support::Dispatch for Pallet<T> {
-    type Caller = T::AccountId;
-    type Call = Call<T>;
-
-    fn dispatch(
-        &mut self,
-        caller: Self::Caller,
-        call: Self::Call,
-    ) -> crate::support::DispatchResult {
-        match call {
-            Call::Transfer { to, amount } => {
-                self.transfer(&caller, &to, amount)?;
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -106,7 +83,7 @@ mod tests {
         balances.set_balance(&"Bob".to_string(), 50);
 
         balances
-            .transfer(&"Alice".to_string(), &"Bob".to_string(), 50)
+            .transfer("Alice".to_string(), "Bob".to_string(), 50)
             .unwrap();
         assert_eq!(balances.balance(&"Alice".to_string()), 50);
         assert_eq!(balances.balance(&"Bob".to_string()), 100);
@@ -119,7 +96,7 @@ mod tests {
         balances.set_balance(&"Alice".to_string(), 100);
         balances.set_balance(&"Bob".to_string(), 50);
 
-        let result = balances.transfer(&"Alice".to_string(), &"Bob".to_string(), 200);
+        let result = balances.transfer("Alice".to_string(), "Bob".to_string(), 200);
         assert_eq!(result, Err("Insufficient balance"));
         assert_eq!(balances.balance(&"Alice".to_string()), 100);
         assert_eq!(balances.balance(&"Bob".to_string()), 50);
@@ -132,7 +109,7 @@ mod tests {
         balances.set_balance(&"Alice".to_string(), 100);
         balances.set_balance(&"Bob".to_string(), u128::MAX);
 
-        let result = balances.transfer(&"Alice".to_string(), &"Bob".to_string(), 1);
+        let result = balances.transfer("Alice".to_string(), "Bob".to_string(), 1);
         assert_eq!(result, Err("Overflow when adding to balance"));
         assert_eq!(balances.balance(&"Alice".to_string()), 100);
         assert_eq!(balances.balance(&"Bob".to_string()), u128::MAX);
